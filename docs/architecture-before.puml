@@ -1,0 +1,22 @@
+@startuml
+title dsh-plantuml · 治理前
+top to bottom direction
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+
+package "DSH Client · Web / Desktop" {
+  component "Markdown 围栏 / 插件配置页" as Slots
+  component "client.js\n注册、翻译、卡片、配置与实时预览\n草稿、缩放与全屏、请求队列、图像导出" as Client
+  Slots --> Client : 插槽
+}
+
+package "DSH Host" {
+  component "index.js\n鉴权、配置读写与渲染路由" as Route
+  component "renderer.js\n样式注入、后端选择、格式兼容" as Renderer
+  Route --> Renderer
+}
+
+component "本机 CLI / JAR / PlantUML 服务" as Backends
+Client --> Route : HTTP · 状态 / 保存 / 预览 / 渲染
+Renderer --> Backends : SVG 优先，兼容 PNG
+@enduml

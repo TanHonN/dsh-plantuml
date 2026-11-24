@@ -1,0 +1,38 @@
+@startuml
+title dsh-plantuml · 治理后
+top to bottom direction
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+
+package "DSH Client · Web / Desktop" {
+  component "Markdown 围栏 / 插件配置页" as Slots
+  package "client.js · 由 src/client 构建" {
+    component "plugin.js\n插槽、翻译、配置版本通知" as Plugin
+    component "card.js\n会话卡片与编辑" as Card
+    component "settings.js\n配置表单与样例预览" as Settings
+    component "drafts.js / preview-queue.js\n草稿、并发调度" as State
+    component "viewport.js / export.js\n缩放与全屏、复制与导出" as Interaction
+    component "images.js\n图像解码与预览 URL 生命周期" as Images
+    component "api.js\nHost HTTP 请求" as API
+    Plugin --> Card
+    Plugin --> Settings
+    Card --> State
+    Card --> Interaction
+    Card --> Images
+    Settings --> Images
+    Settings --> API : 读取 / 保存
+    Images --> API : 请求图像
+  }
+  Slots --> Plugin : 插槽
+}
+
+package "DSH Host" {
+  component "index.js\n鉴权、配置读写与渲染路由" as Route
+  component "renderer.js\n样式注入、后端选择、格式兼容" as Renderer
+  Route --> Renderer
+}
+
+component "本机 CLI / JAR / PlantUML 服务" as Backends
+API --> Route : HTTP · 状态 / 保存 / 预览 / 渲染
+Renderer --> Backends : SVG 优先，兼容 PNG
+@enduml

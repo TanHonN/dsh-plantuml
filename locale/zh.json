@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "dsh-plantuml",
+    "description": "在会话中预览 PlantUML 代码块。支持本机命令、本地 JAR 和受信任的 PlantUML 服务。"
+  }
+}

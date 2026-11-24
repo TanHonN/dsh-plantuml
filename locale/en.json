@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "dsh-plantuml",
+    "description": "Preview PlantUML code blocks in conversations. Render with a local command, a JAR, or a trusted PlantUML server."
+  }
+}
