@@ -2,6 +2,11 @@
   "name": "dsh-plantuml",
   "version": "0.1.0",
   "description": "Render PlantUML code blocks in DeepSeek Harness with a Host command, JAR, or PlantUML server.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanHonN/dsh-plantuml.git"
+  },
   "type": "module",
   "exports": {
     ".": "./src/host/index.js",
