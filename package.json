@@ -4,15 +4,15 @@
   "description": "Render PlantUML code blocks in DeepSeek Harness with a Host command, JAR, or PlantUML server.",
   "type": "module",
   "exports": {
-    ".": "./index.js",
-    "./client": "./client.js",
-    "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg",
+    ".": "./src/host/index.js",
+    "./client": "./dist/client.js",
+    "./locale/*.json": "./assets/locale/*.json",
+    "./icon": "./assets/icon.svg",
     "./package.json": "./package.json"
   },
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml"
+      "patch": "./config/cordis.patch.yml"
     },
     "client": {
       "platform": "web",
@@ -24,16 +24,15 @@
     "dsh": ">=0.2.2-rc.5"
   },
   "files": [
-    "index.js",
-    "renderer.js",
-    "client.js",
-    "cordis.patch.yml",
-    "locale",
-    "icon.svg"
+    "src/host",
+    "dist/client.js",
+    "config/cordis.patch.yml",
+    "assets"
   ],
   "scripts": {
     "build:client": "node scripts/build-client.js",
-    "check": "node scripts/build-client.js --check && node --check index.js && node --check renderer.js && node --check client.js && node --test"
+    "check": "node scripts/build-client.js --check && node --check src/host/index.js && node --check src/host/renderer.js && node --check dist/client.js && node --test",
+    "pack:local": "npm run build:client && npm pack --pack-destination dist"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "3.19.0"

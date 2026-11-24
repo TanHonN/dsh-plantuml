@@ -7,7 +7,7 @@ const FENCE = 'conversation.chat.markdown.fence';
 const SETTINGS = 'plugins.bundle.config';
 
 test('the published Client registers both fence aliases and the bundle settings in DSH', async () => {
-  const code = await readFile(new URL('../client.js', import.meta.url), 'utf8');
+  const code = await readFile(new URL(import.meta.resolve('dsh-plantuml/client')), 'utf8');
   let entry;
   runInNewContext(code, { window: { __ModuleLoader__: { load(value) { entry = value; } } } });
   assert.equal(entry.id, 'dsh-plantuml');

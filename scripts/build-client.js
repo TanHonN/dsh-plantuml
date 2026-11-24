@@ -1,9 +1,10 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const output = new URL('../client.js', import.meta.url);
+const outputDir = new URL('../dist/', import.meta.url);
+const output = new URL('client.js', outputDir);
 const { outputFiles: [artifact] } = await build({
   absWorkingDir: root,
   entryPoints: ['src/client/plugin.js'],
@@ -33,5 +34,6 @@ if (process.argv.includes('--check')) {
     process.exitCode = 1;
   }
 } else {
+  await mkdir(outputDir, { recursive: true });
   await writeFile(output, bundle);
 }

@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
-import { apply, Config } from '../index.js';
-import { DEFAULT_APPEARANCE, encodeSource, SAMPLE } from '../renderer.js';
+import { apply, Config } from 'dsh-plantuml';
+import { DEFAULT_APPEARANCE, encodeSource, SAMPLE } from '../src/host/renderer.js';
 
 await test('the Host settings route rejects cross-site and unauthenticated requests, saves, and detects stale settings', { timeout: 5000 }, async () => {
   let route;

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { test } from 'node:test';
-import { encodeSource, findCommand, renderDiagram, SAMPLE } from '../renderer.js';
+import { encodeSource, findCommand, renderDiagram, SAMPLE } from '../src/host/renderer.js';
 
 // A single-pixel PNG suffices for transport and validation tests.
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1sAAAAASUVORK5CYII=', 'base64');

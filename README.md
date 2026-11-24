@@ -44,4 +44,6 @@ Bob --> Alice: OK
 
 Web Client 源码在 `src/client/`。`plugin.js` 注册 DSH 插槽，`card.js` 和 `settings.js` 分别负责会话卡片和配置页。图像预览、草稿、队列、视口和导出分别由独立模块处理。
 
-运行 `npm install` 安装开发依赖。修改 Client 源码后用 `npm run build:client` 更新发布入口 `client.js`，再执行 `npm run check`。检查会验证生成文件与源码一致，并运行 Client 加载契约、草稿、队列和 Host 渲染测试。可将 `DSH_PLANTUML_TEST_JAR` 设为本机 PlantUML JAR 的绝对路径来运行真实 JAR 测试。
+运行 `npm install` 安装开发依赖。修改 Client 源码后用 `npm run build:client` 更新发布入口 `dist/client.js`，再执行 `npm run check`。检查会验证生成文件与源码一致，并运行 Client 加载契约、草稿、队列和 Host 渲染测试。可将 `DSH_PLANTUML_TEST_JAR` 设为本机 PlantUML JAR 的绝对路径来运行真实 JAR 测试。
+
+运行 `npm run pack:local` 生成 `dist/dsh-plantuml-<版本>.tgz`。新包验证通过后，清理 `dist/` 中过时的安装包。
