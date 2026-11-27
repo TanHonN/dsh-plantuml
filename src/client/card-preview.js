@@ -4,7 +4,7 @@ import { React } from './ui.js';
 
 const { useEffect, useState } = React;
 
-export function useCardPreview({ anchor, code, draft, streaming, config, enabled, previewQueue }) {
+export function useCardPreview({ anchor, code, draft, streaming, config, enabled, previewQueue, action, serverUrl }) {
   const [visible, setVisible] = useState(typeof IntersectionObserver === 'undefined');
   const [nearViewport, setNearViewport] = useState(typeof IntersectionObserver === 'undefined');
   const [early, setEarly] = useState(null);
@@ -43,7 +43,7 @@ export function useCardPreview({ anchor, code, draft, streaming, config, enabled
     const timer = setTimeout(() => {
       dequeue = previewQueue(controller.signal, async () => {
         try {
-          const next = await loadPreview({ action: 'render', source: renderSource }, controller.signal);
+          const next = await loadPreview({ action, source: renderSource, serverUrl }, controller.signal);
           if (controller.signal.aborted) {
             releasePreviewUrl(next.url);
             return;
@@ -61,7 +61,7 @@ export function useCardPreview({ anchor, code, draft, streaming, config, enabled
       dequeue?.();
     };
     // Use the resolved source to keep the same request when streaming ends.
-  }, [pending, renderSource, config, attempt, draft, previewQueue]);
+  }, [pending, renderSource, config, attempt, draft, previewQueue, action, serverUrl]);
 
   const url = preview?.url;
   useEffect(() => () => releasePreviewUrl(url), [url]);

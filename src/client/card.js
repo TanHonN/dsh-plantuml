@@ -9,13 +9,14 @@ import { React, button, codeStyle, h, layer, note, pane, quiet, subtle, toolbar 
 const { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } = React;
 
 export function createFence({ useText, DiagramViewport, Fullscreen, revision, drafts, previewQueue }) {
-  return function Card({ code, children, sessionId, streaming }) {
+  return function Card({ code, children, sessionId, streaming, sidebar }) {
     const t = useText();
     const config = useSyncExternalStore(revision.subscribe, revision.snapshot);
     const anchor = useRef(null);
     const [draftKey, setDraftKey] = useState(null);
     const editorId = useId();
     const editor = useRef(null);
+    const activeViewButton = useRef(null);
     const diagramContent = useRef(null);
     const viewChosen = useRef(false);
     const [jumpLine, setJumpLine] = useState(null);
@@ -26,10 +27,41 @@ export function createFence({ useText, DiagramViewport, Fullscreen, revision, dr
     const [fullscreen, setFullscreen] = useState(false);
     const [feedback, setFeedback] = useState(null);
     const [exporting, setExporting] = useState(false);
+    const [approved, setApproved] = useState(null);
     const source = draft ?? code;
+    const isSidebar = Boolean(sidebar);
+    const backend = sidebar?.backend;
+    const serverUrl = backend?.serverUrl;
+    const autoServer = Boolean(serverUrl && backend.autoServer);
+    const needsConsent = Boolean(serverUrl && !autoServer);
+    const allowed = !isSidebar || (backend?.mode && (!needsConsent || (
+      approved?.source === source && approved.backend === backend
+    )));
+    const action = !isSidebar ? 'render' : autoServer ? 'render-sidebar-auto' : 'render-sidebar';
     const { visible, preview, current, failure, pending, staleWhileStreaming, retry } = useCardPreview({
-      anchor, code, draft, streaming, config, enabled: view !== 'source', previewQueue,
+      anchor, code, draft, streaming, config: isSidebar ? backend : config, enabled: view !== 'source' && allowed,
+      previewQueue, action, serverUrl,
     });
+    const backendChanged = sidebar && failure?.message === 'sidebar_backend_changed';
+
+    function keepActionFocus(event) {
+      if (event.currentTarget.ownerDocument.activeElement === event.currentTarget) {
+        activeViewButton.current?.focus({ preventScroll: true });
+      }
+    }
+
+    function renderOnServer(event) {
+      keepActionFocus(event);
+      setApproved({ source, backend });
+      retry();
+    }
+
+    function reloadBackend(event) {
+      keepActionFocus(event);
+      setApproved(null);
+      retry();
+      sidebar.reload();
+    }
 
     useLayoutEffect(() => {
       if (jumpLine === null || !editor.current) return;
@@ -38,22 +70,22 @@ export function createFence({ useText, DiagramViewport, Fullscreen, revision, dr
     }, [jumpLine, view]);
 
     useLayoutEffect(() => {
-      if (streaming) return;
+      if (streaming || isSidebar) return;
       // Older hosts may not annotate transcript rows. Those cards keep drafts locally.
       const key = cardDraftKey(anchor.current, sessionId);
       setDraftKey(key);
       setDraft(drafts.get(key, code));
-    }, [streaming, code, sessionId]);
+    }, [streaming, code, sessionId, isSidebar]);
 
     useEffect(() => {
-      if (streaming || failure?.message !== 'syntax' || draft !== null || viewChosen.current) return;
+      if (streaming || isSidebar || failure?.message !== 'syntax' || draft !== null || viewChosen.current) return;
       viewChosen.current = true;
       const content = diagramContent.current;
       // Switching views would unmount the native code and preview controls.
       if (!content?.contains(content.ownerDocument.activeElement)) {
         setView(active => active === 'diagram' ? 'edit' : active);
       }
-    }, [streaming, failure, draft]);
+    }, [streaming, isSidebar, failure, draft]);
 
     useEffect(() => {
       const urls = downloads.current;
@@ -68,6 +100,7 @@ export function createFence({ useText, DiagramViewport, Fullscreen, revision, dr
 
     function chooseView(next) {
       viewChosen.current = true;
+      if (next === 'source') setApproved(null);
       setView(next);
     }
 
@@ -77,6 +110,7 @@ export function createFence({ useText, DiagramViewport, Fullscreen, revision, dr
     }
 
     function changeDraft(next) {
+      setApproved(null);
       setDraft(next === code ? null : next);
       drafts.update(draftKey, code, next);
       setFeedback(null);
@@ -123,25 +157,42 @@ export function createFence({ useText, DiagramViewport, Fullscreen, revision, dr
 
     const previewPanel = embedded => h('div', { style: embedded ? { ...pane, flex: '1 1 300px' } : undefined },
       staleWhileStreaming && h('div', { style: { padding: 8 } }, note(t('lastPreview'))),
-      (embedded || preview) && h(DiagramViewport, { preview, embedded, onFullscreen: openFullscreen }),
+      (preview || (embedded && !isSidebar)) && h(DiagramViewport, { preview, embedded, onFullscreen: openFullscreen, isSidebar }),
       !streaming && pending && h('div', { style: { padding: 8 } }, note(t(preview ? 'updating' : 'rendering'))));
+    const backendPanel = isSidebar && !backend?.mode && view !== 'source' && h('div', {
+      style: { display: 'grid', gap: 6, padding: 8, overflowWrap: 'anywhere' },
+    }, backend?.error ? h(React.Fragment, null, note(t(backend.error), true),
+      h('div', null, button(t('reload'), { onClick: reloadBackend }))) : note(t('loading')));
+    const serverPanel = needsConsent && view !== 'source' && !pending && !current && !backendChanged && h('div', {
+      style: { display: 'grid', gap: 6, padding: 8, overflowWrap: 'anywhere' },
+    }, note(t('sidebarSendHint', { url: serverUrl })),
+    preview && !failure && note(t('lastPreview')),
+    h('div', null, button(t('sidebarSend'), { onClick: renderOnServer })));
     const errorPanel = !streaming && view !== 'source' && failure && h('div', { style: { display: 'grid', gap: 6, padding: 8 } },
       note(t(failure.message), true),
       preview && note(t('lastPreview')),
       failure.message === 'syntax' && h(SyntaxDiagnostic, {
         t, diagnostic: failure.diagnostic, source, onJump: jumpToSource,
       }),
-      h('div', null, button(t('retry'), { onClick: retry })));
+      backendChanged ? h('div', null, button(t('reload'), { onClick: reloadBackend }))
+        : !needsConsent && h('div', null, button(t('retry'), { onClick: event => {
+          if (isSidebar) keepActionFocus(event);
+          retry();
+        } })));
 
-    const codeView = () => draft === null ? children : h('pre', {
-      style: { ...codeStyle, margin: 0, padding: 12, whiteSpace: 'pre', overflow: 'auto', maxHeight: '55vh' },
-    }, source);
+    const codeView = () => draft === null
+      ? sidebar ? h('span', { hidden: true, 'data-dsh-plantuml-native-source': '' }) : children
+      : h('pre', {
+        style: { ...codeStyle, margin: 0, padding: 12, whiteSpace: 'pre', overflow: 'auto', maxHeight: '55vh' },
+      }, source);
 
-    return h('section', { ref: anchor, 'aria-label': 'PlantUML', style: streaming && !preview ? undefined : { ...pane, background: layer } },
+    return h('section', { ref: anchor, 'aria-label': 'PlantUML', 'data-dsh-plantuml-sidebar-card': sidebar ? '' : undefined,
+      style: streaming && !preview ? undefined : { ...pane, background: layer } },
       !streaming && h('div', { style: toolbar },
         h('div', { role: 'group', 'aria-label': 'PlantUML', style: { display: 'flex', gap: 4, flexWrap: 'wrap' } },
           ['diagram', 'source', 'edit'].map(tab => button(t(tab), {
-            key: tab, 'aria-pressed': view === tab, onClick: () => chooseView(tab),
+            key: tab, ref: view === tab ? activeViewButton : undefined,
+            'aria-pressed': view === tab, onClick: () => chooseView(tab),
           }, view === tab))),
         h('div', { style: { marginInlineStart: 'auto', display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'flex-start', gap: 6 } },
           button(t('copySource'), { onClick: () => { void copySource(); } }),
@@ -150,6 +201,8 @@ export function createFence({ useText, DiagramViewport, Fullscreen, revision, dr
       (feedback || exporting) && h('div', { style: { padding: '4px 8px' } },
         note(t(exporting ? 'exporting' : feedback.message), feedback?.error)),
       errorPanel,
+      backendPanel,
+      serverPanel,
       view === 'source' && codeView(),
       view === 'diagram' && h('div', { ref: diagramContent },
         (visible || preview) && previewPanel(false),

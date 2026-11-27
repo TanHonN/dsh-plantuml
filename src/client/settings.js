@@ -119,7 +119,10 @@ export function createSettings(useText, refresh) {
     const appearance = draft.appearance;
     const styleDirty = Object.keys(defaultAppearance).some(field => appearance[field] !== status.config.appearance[field]);
     const canReset = Object.keys(defaultAppearance).some(field => appearance[field] !== defaultAppearance[field]);
-    const dirty = backendDirty || styleDirty;
+    const sidebarAutoRender = draft.mode === 'server' && Boolean(draft.serverUrl?.trim())
+      && draft.sidebarAutoServerUrl === draft.serverUrl;
+    const consentDirty = (draft.sidebarAutoServerUrl ?? '') !== (status.config.sidebarAutoServerUrl ?? '');
+    const dirty = backendDirty || styleDirty || consentDirty;
     const pauseReason = operation === 'save' ? 'saving' : operation === 'loading' ? 'loading' : backendDirty ? 'previewPaused' : null;
     const payload = pauseReason ? null : JSON.stringify({ action: 'preview', previous: status.config, appearance });
     async function save() {
@@ -142,7 +145,10 @@ export function createSettings(useText, refresh) {
       }
     }
     function update(field, value) {
-      setDraft(previous => ({ ...previous, [field]: value }));
+      setDraft(previous => ({
+        ...previous, [field]: value,
+        ...(field === 'serverUrl' && value !== previous.serverUrl && { sidebarAutoServerUrl: '' }),
+      }));
       setMessage(null);
     }
     function updateStyle(field, value) {
@@ -174,7 +180,15 @@ export function createSettings(useText, refresh) {
         onChange: event => update(activeField, event.target.value),
       })),
     note(t('host')),
-    draft.mode === 'server' && note(t('privacy')),
+    draft.mode === 'server' && h(React.Fragment, null,
+      note(t('privacy')),
+      h('div', { style: { display: 'grid', gap: 4 } },
+        h('label', { style: { display: 'flex', alignItems: 'flex-start', gap: 6 } },
+          h('input', { type: 'checkbox', checked: sidebarAutoRender, disabled: disabled || !draft.serverUrl?.trim(),
+            'aria-describedby': `${inputId}-sidebar-auto-hint`,
+            onChange: event => update('sidebarAutoServerUrl', event.target.checked ? draft.serverUrl : ''),
+          }), t('sidebarAutoSend')),
+        h('div', { id: `${inputId}-sidebar-auto-hint` }, note(t('sidebarAutoSendHint'))))),
     !backendDirty && status.executable && note(t('command', { path: status.executable })),
     !status.writable && note(t('read_only')),
     h(StyleSettings, { appearance, disabled, update: updateStyle, reset: resetStyle, canReset, payload, pauseReason, reload }),

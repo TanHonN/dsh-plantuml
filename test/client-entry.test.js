@@ -5,11 +5,16 @@ import { runInNewContext } from 'node:vm';
 
 const FENCE = 'conversation.chat.markdown.fence';
 const SETTINGS = 'plugins.bundle.config';
+const DOCUMENT_ACTION = 'sidebar.right.tab.document.action';
+const MARKDOWN_VIEWER = '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/markdown';
 
-test('the published Client registers both fence aliases and the bundle settings in DSH', async () => {
+test('the published Client registers conversation fences, the Markdown action, and settings in DSH', async () => {
   const code = await readFile(new URL(import.meta.resolve('dsh-plantuml/client')), 'utf8');
   let entry;
-  runInNewContext(code, { window: { __ModuleLoader__: { load(value) { entry = value; } } } });
+  runInNewContext(code, {
+    window: { __ModuleLoader__: { load(value) { entry = value; } } },
+    document: { createElement: () => ({}) },
+  });
   assert.equal(entry.id, 'dsh-plantuml');
   const imports = [];
   const plugin = entry.factory(name => {
@@ -17,7 +22,7 @@ test('the published Client registers both fence aliases and the bundle settings 
     // Only check the loader and slot contract, without rendering React components.
     return {};
   });
-  assert.deepEqual(imports, ['react']);
+  assert.deepEqual(imports.sort(), ['react', 'react-dom']);
   assert.deepEqual([...plugin.inject], ['slots', 'locale']);
 
   const registrations = [];
@@ -51,6 +56,7 @@ test('the published Client registers both fence aliases and the bundle settings 
   assert.deepEqual(registrations.map(({ name, id, key }) => [name, id, key]), [
     [FENCE, 'dsh-plantuml/fence', 'plantuml'],
     [FENCE, 'dsh-plantuml/fence', 'puml'],
+    [DOCUMENT_ACTION, 'dsh-plantuml/sidebar', MARKDOWN_VIEWER],
     [SETTINGS, undefined, 'dsh-plantuml'],
   ]);
   assert.equal(typeof registrations[0].component, 'function');

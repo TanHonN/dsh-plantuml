@@ -9,6 +9,7 @@ export const Config = Schema.object({
   mode: Schema.union(['auto', 'jar', 'server']).default('auto').volatile(),
   jarPath: Schema.string().default('').volatile(),
   serverUrl: Schema.string().default('').volatile(),
+  sidebarAutoServerUrl: Schema.string().default('').volatile(),
   appearance: Schema.object({
     theme: Schema.union(['default', 'light', 'dark']).default(DEFAULT_APPEARANCE.theme),
     drawing: Schema.union(['standard', 'handwritten']).default(DEFAULT_APPEARANCE.drawing),
@@ -64,6 +65,7 @@ async function readRequest(req) {
 function savedFields(config) {
   return {
     mode: config.mode ?? 'auto', jarPath: config.jarPath ?? '', serverUrl: config.serverUrl ?? '',
+    sidebarAutoServerUrl: config.sidebarAutoServerUrl ?? '',
     appearance: { ...DEFAULT_APPEARANCE, ...config.appearance },
   };
 }
@@ -78,12 +80,17 @@ function validateDraft(draft) {
     }
     config.jarPath = jarPath;
   }
-  if (draft.mode === 'server') config.serverUrl = serverBase(draft.serverUrl).href;
+  if (draft.mode === 'server') {
+    config.serverUrl = serverBase(draft.serverUrl).href;
+    // Bind the saved permission to the validated URL displayed when the user enabled the setting.
+    if (draft.sidebarAutoServerUrl === draft.serverUrl) config.sidebarAutoServerUrl = config.serverUrl;
+  }
   return config;
 }
 
 function sameSettings(a, b) {
-  if (a.mode !== b.mode || a.jarPath !== b.jarPath || a.serverUrl !== b.serverUrl) return false;
+  if (a.mode !== b.mode || a.jarPath !== b.jarPath || a.serverUrl !== b.serverUrl
+    || a.sidebarAutoServerUrl !== (b.sidebarAutoServerUrl ?? '')) return false;
   return Object.keys(DEFAULT_APPEARANCE).every(key => a.appearance[key] === (b.appearance?.[key] ?? DEFAULT_APPEARANCE[key]));
 }
 
@@ -105,6 +112,7 @@ export function apply(ctx, config) {
     mode: config.mode.get(),
     jarPath: config.jarPath.get(),
     serverUrl: config.serverUrl.get(),
+    sidebarAutoServerUrl: config.sidebarAutoServerUrl.get(),
     appearance: config.appearance.get(),
   });
   ctx.effect(() => {
@@ -141,6 +149,7 @@ export function apply(ctx, config) {
                 const updated = { ...current, mode: next.mode };
                 delete updated.jarPath;
                 delete updated.serverUrl;
+                delete updated.sidebarAutoServerUrl;
                 return Object.assign(updated, next);
               });
             } catch {
@@ -150,9 +159,22 @@ export function apply(ctx, config) {
             }
             return send(res, 200, await status(read(), writable));
           }
-          if (!['render', 'test', 'preview'].includes(body.action)) throw new RenderError('body_invalid', 400);
+          const automaticSidebar = body.action === 'render-sidebar-auto';
+          const sidebar = automaticSidebar || body.action === 'render-sidebar';
+          const sample = body.action === 'test' || body.action === 'preview';
+          if (!sidebar && !sample && body.action !== 'render') throw new RenderError('body_invalid', 400);
           const current = read();
-          const sample = body.action !== 'render';
+          if (sidebar) {
+            const usesServer = current.mode === 'server';
+            const validRequest = usesServer
+              ? Boolean(current.serverUrl) && body.serverUrl === current.serverUrl
+              : body.serverUrl === undefined;
+            const autoGranted = usesServer && current.sidebarAutoServerUrl === current.serverUrl;
+            // Check the same settings snapshot that renderDiagram will use before sending source.
+            if (!validRequest || (automaticSidebar && !autoGranted)) {
+              throw new RenderError('sidebar_backend_changed', 409);
+            }
+          }
           if (sample && !sameSettings(savedFields(current), body.previous ?? {})) {
             throw new RenderError('conflict', 409);
           }

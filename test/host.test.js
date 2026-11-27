@@ -62,7 +62,9 @@ await test('the Host settings route rejects cross-site and unauthenticated reque
 
     const initial = await (await fetch(url, { headers: authorized })).json();
     assert.equal(initial.writable, true);
-    assert.deepEqual(initial.config, { mode: 'auto', jarPath: '', serverUrl: '', appearance: DEFAULT_APPEARANCE });
+    assert.deepEqual(initial.config, {
+      mode: 'auto', jarPath: '', serverUrl: '', sidebarAutoServerUrl: '', appearance: DEFAULT_APPEARANCE,
+    });
     const serverUrl = new URL('/plantuml/', url).href;
     const draft = { action: 'save', config: { mode: 'server', serverUrl }, previous: initial.config };
     const crossSite = await post(draft, { 'sec-fetch-site': 'cross-site' });
@@ -71,7 +73,9 @@ await test('the Host settings route rejects cross-site and unauthenticated reque
     const saved = await post(draft, { 'sec-fetch-site': 'same-origin' });
     assert.equal(saved.status, 200);
     const next = await saved.json();
-    assert.deepEqual(next.config, { mode: 'server', jarPath: '', serverUrl, appearance: DEFAULT_APPEARANCE });
+    assert.deepEqual(next.config, {
+      mode: 'server', jarPath: '', serverUrl, sidebarAutoServerUrl: '', appearance: DEFAULT_APPEARANCE,
+    });
     const image = await post({ action: 'test', previous: next.config });
     assert.equal(image.status, 200);
     assert.equal(image.headers.get('content-type'), 'image/svg+xml');
@@ -122,9 +126,66 @@ await test('the Host settings route rejects cross-site and unauthenticated reque
     assert.deepEqual(await broken.json(), {
       error: 'syntax', diagnostic: { line: 2, detail: 'Syntax Error? (Assumed diagram type: sequence)' },
     });
-    const reset = await post({ action: 'save', previous: styledConfig, config: { mode: 'auto' } });
+    const sidebar = { action: 'render-sidebar', source: SAMPLE };
+    for (const attempt of [sidebar, { ...sidebar, serverUrl: true }, { ...sidebar, serverUrl: `${serverUrl}old/` }]) {
+      const refused = await post(attempt);
+      assert.equal(refused.status, 409);
+      assert.deepEqual(await refused.json(), { error: 'sidebar_backend_changed' });
+    }
+    assert.deepEqual(renderedSources, [plain, themed, plain, themed]);
+    const approved = await post({ ...sidebar, serverUrl });
+    assert.equal(approved.status, 200);
+    assert.equal(await approved.text(), svg);
+    assert.deepEqual(renderedSources, [plain, themed, plain, themed, themed]);
+
+    const automatic = { ...sidebar, action: 'render-sidebar-auto', serverUrl };
+    async function expectNoAutomaticSend(payload) {
+      const before = renderedSources.length;
+      const rejected = await post(payload);
+      assert.equal(rejected.status, 409);
+      assert.deepEqual(await rejected.json(), { error: 'sidebar_backend_changed' });
+      assert.equal(renderedSources.length, before);
+    }
+    await expectNoAutomaticSend(automatic);
+
+    const enabledResponse = await post({
+      action: 'save', previous: styledConfig, config: { ...styledConfig, sidebarAutoServerUrl: serverUrl },
+    });
+    assert.equal(enabledResponse.status, 200);
+    const enabled = (await enabledResponse.json()).config;
+    assert.deepEqual(enabled, { ...styledConfig, sidebarAutoServerUrl: serverUrl });
+    assert.equal(settings.sidebarAutoServerUrl, serverUrl);
+    const autoImage = await post(automatic);
+    assert.equal(autoImage.status, 200);
+    assert.equal(await autoImage.text(), svg);
+    assert.deepEqual(renderedSources, [plain, themed, plain, themed, themed, themed]);
+    await expectNoAutomaticSend({ ...automatic, serverUrl: `${serverUrl}wrong/` });
+
+    const staleConsent = await post({ action: 'save', previous: styledConfig, config: styledConfig });
+    assert.equal(staleConsent.status, 409);
+    const disabledResponse = await post({ action: 'save', previous: enabled, config: styledConfig });
+    assert.equal(disabledResponse.status, 200);
+    assert.deepEqual((await disabledResponse.json()).config, styledConfig);
+    await expectNoAutomaticSend(automatic);
+
+    const reenabled = await post({ action: 'save', previous: styledConfig, config: enabled });
+    assert.equal(reenabled.status, 200);
+    assert.deepEqual((await reenabled.json()).config, enabled);
+    const replacementUrl = new URL('replacement/', serverUrl).href;
+    const replaced = await post({ action: 'save', previous: enabled, config: { ...enabled, serverUrl: replacementUrl } });
+    assert.equal(replaced.status, 200);
+    const replacementConfig = (await replaced.json()).config;
+    assert.equal(replacementConfig.sidebarAutoServerUrl, '');
+    assert.equal(replacementConfig.serverUrl, replacementUrl);
+    await expectNoAutomaticSend(automatic);
+    await expectNoAutomaticSend({ ...automatic, serverUrl: replacementUrl });
+
+    const reset = await post({ action: 'save', previous: replacementConfig, config: { mode: 'auto' } });
     assert.equal(reset.status, 200);
     assert.deepEqual(await reset.json(), initial);
+    const staleApproval = await post({ ...sidebar, serverUrl });
+    assert.equal(staleApproval.status, 409);
+    assert.deepEqual(await staleApproval.json(), { error: 'sidebar_backend_changed' });
   } finally {
     server.close();
     server.closeAllConnections();

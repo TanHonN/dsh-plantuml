@@ -5,7 +5,7 @@ const { useEffect, useLayoutEffect, useRef, useState } = React;
 const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
 
 export function createViewport(useText) {
-  function DiagramViewport({ preview, fullscreen = false, embedded = false, onFullscreen, onClose, closeRef }) {
+  function DiagramViewport({ preview, fullscreen = false, embedded = false, onFullscreen, onClose, closeRef, isSidebar }) {
     const t = useText();
     const canvas = useRef(null);
     const position = useRef(null);
@@ -81,7 +81,8 @@ export function createViewport(useText) {
     }
 
     function pointerDown(event) {
-      if (!preview || event.button !== 0 || (event.pointerType !== 'touch' && !overflow)) return;
+      if (!preview || event.button !== 0 || (isSidebar && event.pointerType === 'touch')
+        || (event.pointerType !== 'touch' && !overflow)) return;
       if (pointers.current.size >= 2) return;
       const point = { x: event.clientX, y: event.clientY };
       pointers.current.set(event.pointerId, point);
@@ -168,7 +169,7 @@ export function createViewport(useText) {
         style: { display: 'grid', placeItems: 'center', boxSizing: 'content-box', padding: 8,
           width: `max(calc(100% - 16px), ${width}px)`, height: `max(calc(100% - 16px), ${height}px)` },
       }, h('img', { src: preview.url, alt: t('preview'), draggable: false,
-        style: { display: 'block', width, height, maxWidth: 'none', maxHeight: 'none', userSelect: 'none', touchAction: 'none' } }))));
+        style: { display: 'block', width, height, maxWidth: 'none', maxHeight: 'none', userSelect: 'none', touchAction: isSidebar ? 'pan-y' : 'none' } }))));
   }
 
   function Fullscreen({ preview, status, failed, close }) {

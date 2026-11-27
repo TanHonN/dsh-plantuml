@@ -3,6 +3,7 @@ import { createDraftStore, FENCE } from './drafts.js';
 import { en, zh } from './messages.js';
 import { createPreviewQueue } from './preview-queue.js';
 import { createSettings } from './settings.js';
+import { createMarkdownAction, DOCUMENT_ACTION, MARKDOWN_VIEWER } from './sidebar.js';
 import { React } from './ui.js';
 import { createViewport } from './viewport.js';
 
@@ -44,5 +45,8 @@ export function apply(ctx) {
   for (const key of ['plantuml', 'puml']) {
     ctx.effect(() => ctx.slots.inject(FENCE, () => ctx.slots.register({ name: FENCE, id: `${NS}/fence`, key }, Fence)));
   }
+  ctx.effect(() => ctx.slots.inject(DOCUMENT_ACTION, () => ctx.slots.register({
+    name: DOCUMENT_ACTION, id: `${NS}/sidebar`, key: MARKDOWN_VIEWER,
+  }, createMarkdownAction(Fence, revision))));
   ctx.effect(() => ctx.slots.inject(SETTINGS, () => ctx.slots.register({ name: SETTINGS, key: NS }, Settings)));
 }
